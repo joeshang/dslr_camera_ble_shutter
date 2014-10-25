@@ -26,7 +26,7 @@ for use with the CC2540 Bluetooth Low Energy Protocol Stack.
 #include "gapgattserver.h"
 #include "gattservapp.h"
 #include "devinfoservice.h"
-#include "simpleGATTprofile.h"
+#include "DSLRCameraBLEShutterService.h"
 
 #if defined( CC2540_MINIDK )
 #include "simplekeys.h"
@@ -50,9 +50,6 @@ for use with the CC2540 Bluetooth Low Energy Protocol Stack.
 /*********************************************************************
  * CONSTANTS
  */
-
-// How often to perform periodic event
-#define DCBS_PERIODIC_EVT_PERIOD                   5000
 
 // What is the advertising interval when device is discoverable (units of 625us, 160=100ms)
 #define DEFAULT_ADVERTISING_INTERVAL          160
@@ -91,6 +88,17 @@ for use with the CC2540 Bluetooth Low Energy Protocol Stack.
 
 // Length of bd addr as a string
 #define B_ADDR_STR_LEN                        15
+
+#define SHUTTER_SBIT                          P0_1
+#define SHUTTER_BV                            BV(1)
+#define SHUTTER_DIR                           P0DIR
+#define SHUTTER_ACTIVE                        0
+#define SHUTTER_RELEASE                       1
+#define FOCUS_SBIT                            P0_7
+#define FOCUS_DIR                             P0DIR
+#define FOCUS_BV                              BV(7)
+#define FOCUS_ACTIVE                          0
+#define FOCUS_RELEASE                         1
 
 /*********************************************************************
  * TYPEDEFS
@@ -171,21 +179,30 @@ static uint8 advertData[] =
     // in this peripheral
     0x03,   // length of this data
     GAP_ADTYPE_16BIT_MORE,      // some of the UUID's, but not all
-    LO_UINT16( SIMPLEPROFILE_SERV_UUID ),
-    HI_UINT16( SIMPLEPROFILE_SERV_UUID ),
-
+    LO_UINT16( BLESHUTTER_SERV_UUID ),
+    HI_UINT16( BLESHUTTER_SERV_UUID ),
 };
 
 // GAP GATT Attributes
-static uint8 attDeviceName[GAP_DEVICE_NAME_LEN] = "DSLR Camera BLE Shutter";
+static uint8 attDeviceName[GAP_DEVICE_NAME_LEN] = "DSLR BLE Shutter";
+
+static uint16 progressCount     = 0;
+static uint16 targetCount       = 1;
+static uint32 delayBeforeStart  = 0;
+static uint32 shutterExposure   = 0;
+static uint32 repeatInterval    = 0;
 
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
 static void DSLRCameraBLEShutter_ProcessOSALMsg( osal_event_hdr_t *pMsg );
 static void peripheralStateNotificationCB( gaprole_States_t newState );
-static void performPeriodicTask( void );
-static void simpleProfileChangeCB( uint8 paramID );
+static void bleShutterChangeCB( uint8 paramID );
+
+static void activeShutter();
+static void releaseShutter();
+static void activeFocus();
+static void releaseFocus();
 
 #if defined( CC2540_MINIDK )
 static void DSLRCameraBLEShutter_HandleKeys( uint8 shift, uint8 keys );
@@ -215,10 +232,10 @@ static gapBondCBs_t DSLRCameraBLEShutter_BondMgrCBs =
     NULL                      // Pairing / Bonding state Callback (not used by application)
 };
 
-// Simple GATT Profile Callbacks
-static simpleProfileCBs_t DSLRCameraBLEShutter_SimpleProfileCBs =
+// BLE Shutter GATT Profile Callbacks
+static bleShutterCBs_t DSLRCameraBLEShutter_BLEShutterCBs =
 {
-    simpleProfileChangeCB    // Charactersitic value change callback
+    bleShutterChangeCB    // Charactersitic value change callback
 };
 /*********************************************************************
  * PUBLIC FUNCTIONS
@@ -227,7 +244,7 @@ static simpleProfileCBs_t DSLRCameraBLEShutter_SimpleProfileCBs =
 /*********************************************************************
  * @fn      DSLRCameraBLEShutter_Init
  *
- * @brief   Initialization function for the Simple BLE Peripheral App Task.
+ * @brief   Initialization function for the DSLR Camera BLE Shutter App Task.
  *          This is called during initialization and should contain
  *          any application specific initialization (ie. hardware
  *          initialization/setup, table initialization, power up
@@ -311,23 +328,21 @@ void DSLRCameraBLEShutter_Init( uint8 task_id )
     GGS_AddService( GATT_ALL_SERVICES );            // GAP
     GATTServApp_AddService( GATT_ALL_SERVICES );    // GATT attributes
     DevInfo_AddService();                           // Device Information Service
-    SimpleProfile_AddService( GATT_ALL_SERVICES );  // Simple GATT Profile
+    BLEShutter_AddService( GATT_ALL_SERVICES );  // DSLR Camera BLE Shutter Service
 #if defined FEATURE_OAD
     VOID OADTarget_AddService();                    // OAD Profile
 #endif
 
-    // Setup the SimpleProfile Characteristic Values
+    // Setup the BLEShutter Characteristic Values
     {
-        uint8 charValue1 = 1;
-        uint8 charValue2 = 2;
-        uint8 charValue3 = 3;
-        uint8 charValue4 = 4;
-        uint8 charValue5[SIMPLEPROFILE_CHAR5_LEN] = { 1, 2, 3, 4, 5 };
-        SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, sizeof ( uint8 ), &charValue1 );
-        SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR2, sizeof ( uint8 ), &charValue2 );
-        SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR3, sizeof ( uint8 ), &charValue3 );
-        SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR4, sizeof ( uint8 ), &charValue4 );
-        SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR5, SIMPLEPROFILE_CHAR5_LEN, charValue5 );
+        uint8 focus = 0;
+        uint8 stop = 0;
+        uint8 shooting[BLESHUTTER_SHOOTING_LEN] = { 1, 0 };
+
+        BLEShutter_SetParameter( BLESHUTTER_FOCUS, sizeof ( uint8 ), &focus);
+        BLEShutter_SetParameter( BLESHUTTER_STOP,  sizeof ( uint8 ), &stop);
+        BLEShutter_SetParameter( BLESHUTTER_PROGRESS, BLESHUTTER_PROGRESS_LEN, &progressCount);
+        BLEShutter_SetParameter( BLESHUTTER_SHOOTING, BLESHUTTER_SHOOTING_LEN, shooting);
     }
 
 
@@ -360,6 +375,13 @@ void DSLRCameraBLEShutter_Init( uint8 task_id )
 
 #endif // #if defined( CC2540_MINIDK )
 
+    // Initialize Shutter and Focus related GPIO
+    SHUTTER_DIR |= SHUTTER_BV;
+    FOCUS_DIR |= FOCUS_BV;
+
+    SHUTTER_SBIT = SHUTTER_RELEASE;
+    FOCUS_SBIT = SHUTTER_RELEASE;
+
 #if (defined HAL_LCD) && (HAL_LCD == TRUE)
 
 #if defined FEATURE_OAD
@@ -369,13 +391,13 @@ void DSLRCameraBLEShutter_Init( uint8 task_id )
     HalLcdWriteStringValue( "BLE Peri-B", OAD_VER_NUM( _imgHdr.ver ), 16, HAL_LCD_LINE_1 );
 #endif // HAL_IMAGE_A
 #else
-    HalLcdWriteString( "BLE Peripheral", HAL_LCD_LINE_1 );
+    HalLcdWriteString( "BLE Shutter", HAL_LCD_LINE_1 );
 #endif // FEATURE_OAD
 
 #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
 
-    // Register callback with SimpleGATTprofile
-    VOID SimpleProfile_RegisterAppCBs( &DSLRCameraBLEShutter_SimpleProfileCBs );
+    // Register callback with BLE Shutter Service
+    VOID BLEShutter_RegisterAppCBs( &DSLRCameraBLEShutter_BLEShutterCBs );
 
     // Enable clock divide on halt
     // This reduces active current while radio is active and CC254x MCU
@@ -397,7 +419,7 @@ void DSLRCameraBLEShutter_Init( uint8 task_id )
 /*********************************************************************
  * @fn      DSLRCameraBLEShutter_ProcessEvent
  *
- * @brief   Simple BLE Peripheral Application Task event processor.  This function
+ * @brief   DSLR Camera BLE Shutter Application Task event processor.  This function
  *          is called to process all events for the task.  Events
  *          include timers, messages and any other user defined events.
  *
@@ -436,24 +458,30 @@ uint16 DSLRCameraBLEShutter_ProcessEvent( uint8 task_id, uint16 events )
         // Start Bond Manager
         VOID GAPBondMgr_Register( &DSLRCameraBLEShutter_BondMgrCBs );
 
-        // Set timer for first periodic event
-        osal_start_timerEx( dslrCameraBLEShutter_TaskID, DCBS_PERIODIC_EVT, DCBS_PERIODIC_EVT_PERIOD );
-
         return ( events ^ DCBS_START_DEVICE_EVT );
     }
 
-    if ( events & DCBS_PERIODIC_EVT )
+    if ( events & DCBS_FOCUS_RELEASE_EVT )
     {
-        // Restart timer
-        if ( DCBS_PERIODIC_EVT_PERIOD )
-        {
-            osal_start_timerEx( dslrCameraBLEShutter_TaskID, DCBS_PERIODIC_EVT, DCBS_PERIODIC_EVT_PERIOD );
-        }
+        releaseFocus();
 
-        // Perform periodic application task
-        performPeriodicTask();
+        return ( events ^ DCBS_FOCUS_RELEASE_EVT );
+    }
 
-        return (events ^ DCBS_PERIODIC_EVT);
+    if ( events & DCBS_SHOOTING_ACTIVE_EVT )
+    {
+        HalLcdWriteString( "Shooting Active Event",  HAL_LCD_LINE_8 );
+        activeShutter();
+
+        return ( events ^ DCBS_SHOOTING_ACTIVE_EVT );
+    }
+
+    if ( events & DCBS_SHOOTING_RELEASE_EVT )
+    {
+        HalLcdWriteString( "Shooting Release Event",  HAL_LCD_LINE_8 );
+        releaseShutter();
+
+        return ( events ^ DCBS_SHOOTING_RELEASE_EVT );
     }
 
     // Discard unknown events
@@ -684,76 +712,132 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
 }
 
 /*********************************************************************
- * @fn      performPeriodicTask
+ * @fn      bleShutterChangeCB
  *
- * @brief   Perform a periodic application task. This function gets
- *          called every five seconds as a result of the DCBS_PERIODIC_EVT
- *          OSAL event. In this example, the value of the third
- *          characteristic in the SimpleGATTProfile service is retrieved
- *          from the profile, and then copied into the value of the
- *          the fourth characteristic.
- *
- * @param   none
- *
- * @return  none
- */
-static void performPeriodicTask( void )
-{
-    uint8 valueToCopy;
-    uint8 stat;
-
-    // Call to retrieve the value of the third characteristic in the profile
-    stat = SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR3, &valueToCopy);
-
-    if( stat == SUCCESS )
-    {
-        /*
-         * Call to set that value of the fourth characteristic in the profile. Note
-         * that if notifications of the fourth characteristic have been enabled by
-         * a GATT client device, then a notification will be sent every time this
-         * function is called.
-         */
-        SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR4, sizeof(uint8), &valueToCopy);
-    }
-}
-
-/*********************************************************************
- * @fn      simpleProfileChangeCB
- *
- * @brief   Callback from SimpleBLEProfile indicating a value change
+ * @brief   Callback from DSLR Camera BLE Shutter indicating a value change
  *
  * @param   paramID - parameter ID of the value that was changed.
  *
  * @return  none
  */
-static void simpleProfileChangeCB( uint8 paramID )
+static void bleShutterChangeCB( uint8 paramID )
 {
-    uint8 newValue;
-
     switch( paramID )
     {
-        case SIMPLEPROFILE_CHAR1:
-            SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, &newValue );
+        case BLESHUTTER_FOCUS:
+            {
+                uint8 focus;
+                BLEShutter_GetParameter( BLESHUTTER_FOCUS, &focus );
+
+                activeFocus();
 
 #if (defined HAL_LCD) && (HAL_LCD == TRUE)
-            HalLcdWriteStringValue( "Char 1:", (uint16)(newValue), 10,  HAL_LCD_LINE_3 );
+                HalLcdWriteStringValue( "Focus:", (uint16)(focus), 10,  HAL_LCD_LINE_3 );
 #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
-
+            }
             break;
 
-        case SIMPLEPROFILE_CHAR3:
-            SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR3, &newValue );
+        case BLESHUTTER_SHOOTING:
+            {
+                uint8 shooting[BLESHUTTER_SHOOTING_LEN];
+                BLEShutter_GetParameter( BLESHUTTER_SHOOTING, shooting );
+
+                uint8 index = 0;
+                VOID osal_memcpy( &targetCount, shooting + index, sizeof(uint16) );
+                index += sizeof(uint16);
+                VOID osal_memcpy( &delayBeforeStart, shooting + index, sizeof(uint32) );
+                index += sizeof(uint32);
+                VOID osal_memcpy( &shutterExposure, shooting + index, sizeof(uint32) );
+                index += sizeof(uint32);
+                VOID osal_memcpy( &repeatInterval, shooting + index, sizeof(uint32) );
+                progressCount = 0;
 
 #if (defined HAL_LCD) && (HAL_LCD == TRUE)
-            HalLcdWriteStringValue( "Char 3:", (uint16)(newValue), 10,  HAL_LCD_LINE_3 );
+                HalLcdWriteString( "Shooting:", HAL_LCD_LINE_3 );
+                HalLcdWriteStringValue( "- count:", targetCount, 10,  HAL_LCD_LINE_4 );
+                HalLcdWriteStringValueValue( "- delay:", (uint16)(delayBeforeStart >> 16), 10,
+                        (uint16)(delayBeforeStart), 10, HAL_LCD_LINE_5 );
+                HalLcdWriteStringValueValue( "- exposure:", (uint16)(shutterExposure >> 16), 10,
+                        (uint16)(shutterExposure), 10, HAL_LCD_LINE_6 );
+                HalLcdWriteStringValueValue( "- interval:", (uint16)(repeatInterval >> 16), 10,
+                        (uint16)(repeatInterval), 10, HAL_LCD_LINE_7 );
 #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
 
+                if (delayBeforeStart)
+                {
+                    osal_start_timerEx( dslrCameraBLEShutter_TaskID, DCBS_SHOOTING_ACTIVE_EVT, delayBeforeStart );
+                    HalLcdWriteString( "Start Delay Timer",  HAL_LCD_LINE_8 );
+                }
+                else
+                {
+                    activeShutter();
+                }
+
+            }
+            break;
+
+        case BLESHUTTER_STOP:
+            {
+                uint8 stop;
+                BLEShutter_GetParameter( BLESHUTTER_STOP, &stop );
+
+                osal_stop_timerEx( dslrCameraBLEShutter_TaskID, DCBS_FOCUS_RELEASE_EVT );
+                osal_stop_timerEx( dslrCameraBLEShutter_TaskID, DCBS_SHOOTING_ACTIVE_EVT );
+                osal_stop_timerEx( dslrCameraBLEShutter_TaskID, DCBS_SHOOTING_RELEASE_EVT );
+                SHUTTER_SBIT = SHUTTER_RELEASE;
+                FOCUS_SBIT = FOCUS_RELEASE;
+
+#if (defined HAL_LCD) && (HAL_LCD == TRUE)
+                HalLcdWriteStringValue( "Stop:", (uint16)(stop), 10,  HAL_LCD_LINE_3 );
+#endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
+
+            }
             break;
 
         default:
             // should not reach here!
             break;
     }
+}
+
+static void activeShutter()
+{
+    SHUTTER_SBIT = SHUTTER_ACTIVE;
+
+    if (shutterExposure != 0xFFFFFFFF)
+    {
+        if (shutterExposure == 0)
+        {
+            shutterExposure = DCBS_DEFAULT_ACTIVE_PERIOD;
+        }
+        HalLcdWriteString( "Start Exposure Timer",  HAL_LCD_LINE_8 );
+        osal_start_timerEx( dslrCameraBLEShutter_TaskID, DCBS_SHOOTING_RELEASE_EVT, shutterExposure );
+    }
+}
+
+static void releaseShutter()
+{
+    SHUTTER_SBIT = SHUTTER_RELEASE;
+    
+    progressCount++;
+    BLEShutter_SetParameter( BLESHUTTER_PROGRESS, BLESHUTTER_PROGRESS_LEN, &progressCount);
+    if (progressCount < targetCount)
+    {
+        HalLcdWriteString( "Start Interval Timer",  HAL_LCD_LINE_8 );
+        osal_start_timerEx( dslrCameraBLEShutter_TaskID, DCBS_SHOOTING_ACTIVE_EVT, repeatInterval );
+    }
+}
+
+static void activeFocus()
+{
+    FOCUS_SBIT = FOCUS_ACTIVE;
+
+    osal_start_timerEx( dslrCameraBLEShutter_TaskID, DCBS_FOCUS_RELEASE_EVT, DCBS_DEFAULT_ACTIVE_PERIOD );
+}
+
+static void releaseFocus()
+{
+    FOCUS_SBIT = FOCUS_RELEASE;
 }
 
 #if (defined HAL_LCD) && (HAL_LCD == TRUE)

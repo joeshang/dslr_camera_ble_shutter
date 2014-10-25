@@ -1556,8 +1556,8 @@
           <state>$PROJ_DIR$\..\..\common\cc2540</state>
           <state>$PROJ_DIR$\..\..\common\npi\npi_np</state>
           <state>$PROJ_DIR$\..\..\Profiles\Roles</state>
-          <state>$PROJ_DIR$\..\..\Profiles\SimpleProfile</state>
           <state>$PROJ_DIR$\..\..\Profiles\DevInfo</state>
+          <state>$PROJ_DIR$\..\Profile</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>

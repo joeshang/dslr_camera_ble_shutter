@@ -21,28 +21,25 @@ extern "C"
  * CONSTANTS
  */
 
-// Profile Parameters
-#define SIMPLEPROFILE_CHAR1                   0  // RW uint8 - Profile Characteristic 1 value 
-#define SIMPLEPROFILE_CHAR2                   1  // RW uint8 - Profile Characteristic 2 value
-#define SIMPLEPROFILE_CHAR3                   2  // RW uint8 - Profile Characteristic 3 value
-#define SIMPLEPROFILE_CHAR4                   3  // RW uint8 - Profile Characteristic 4 value
-#define SIMPLEPROFILE_CHAR5                   4  // RW uint8 - Profile Characteristic 4 value
-  
-// Simple Profile Service UUID
-#define SIMPLEPROFILE_SERV_UUID               0xFFF0
-    
-// Key Pressed UUID
-#define SIMPLEPROFILE_CHAR1_UUID            0xFFF1
-#define SIMPLEPROFILE_CHAR2_UUID            0xFFF2
-#define SIMPLEPROFILE_CHAR3_UUID            0xFFF3
-#define SIMPLEPROFILE_CHAR4_UUID            0xFFF4
-#define SIMPLEPROFILE_CHAR5_UUID            0xFFF5
+#define BLESHUTTER_FOCUS                    1
+#define BLESHUTTER_SHOOTING                 2
+#define BLESHUTTER_STOP                     3
+#define BLESHUTTER_PROGRESS                 4
+
+// DSLR Camera BLE Shutter Service UUID
+#define BLESHUTTER_SERV_UUID                0xFFF0
+
+// DSLR Camera BLE Shutter Characteristics UUID
+#define BLESHUTTER_FOCUS_UUID               BLESHUTTER_SERV_UUID + BLESHUTTER_FOCUS 
+#define BLESHUTTER_SHOOTING_UUID            BLESHUTTER_SERV_UUID + BLESHUTTER_SHOOTING
+#define BLESHUTTER_STOP_UUID                BLESHUTTER_SERV_UUID + BLESHUTTER_STOP
+#define BLESHUTTER_PROGRESS_UUID            BLESHUTTER_SERV_UUID + BLESHUTTER_PROGRESS
   
 // Simple Keys Profile Services bit fields
-#define SIMPLEPROFILE_SERVICE               0x00000001
+#define BLESHUTTER_SERVICE                  0x00000001
 
-// Length of Characteristic 5 in bytes
-#define SIMPLEPROFILE_CHAR5_LEN           5  
+#define BLESHUTTER_SHOOTING_LEN             14
+#define BLESHUTTER_PROGRESS_LEN             2
 
 /*********************************************************************
  * TYPEDEFS
@@ -58,14 +55,12 @@ extern "C"
  */
 
 // Callback when a characteristic value has changed
-typedef void (*simpleProfileChange_t)( uint8 paramID );
+typedef void (*bleShutterChange_t)( uint8 paramID );
 
 typedef struct
 {
-  simpleProfileChange_t        pfnSimpleProfileChange;  // Called when characteristic value changes
-} simpleProfileCBs_t;
-
-    
+  bleShutterChange_t        pfnBLEShutterChange;  // Called when characteristic value changes
+} bleShutterCBs_t;
 
 /*********************************************************************
  * API FUNCTIONS 
@@ -73,25 +68,24 @@ typedef struct
 
 
 /*
- * SimpleProfile_AddService- Initializes the Simple GATT Profile service by registering
- *          GATT attributes with the GATT server.
- *
+ * BLEShutter_AddService - Initializes the DSLR Camera BLE Shutter service by
+ *          resgistering GATT attributes with the GATT server.
  * @param   services - services to add. This is a bit map and can
  *                     contain more than one service.
  */
 
-extern bStatus_t SimpleProfile_AddService( uint32 services );
+extern bStatus_t BLEShutter_AddService( uint32 services );
 
 /*
- * SimpleProfile_RegisterAppCBs - Registers the application callback function.
+ * BLEShutter_RegisterAppCB - Registers the application callback function.
  *                    Only call this function once.
  *
  *    appCallbacks - pointer to application callbacks.
  */
-extern bStatus_t SimpleProfile_RegisterAppCBs( simpleProfileCBs_t *appCallbacks );
+extern bStatus_t BLEShutter_RegisterAppCBs( bleShutterCBs_t *appCallback );
 
 /*
- * SimpleProfile_SetParameter - Set a Simple GATT Profile parameter.
+ * BLEShutter_SetParameter - Set a DSLR Camera BLE Shutter Service parameter.
  *
  *    param - Profile parameter ID
  *    len - length of data to right
@@ -100,10 +94,10 @@ extern bStatus_t SimpleProfile_RegisterAppCBs( simpleProfileCBs_t *appCallbacks 
  *          data type (example: data type of uint16 will be cast to 
  *          uint16 pointer).
  */
-extern bStatus_t SimpleProfile_SetParameter( uint8 param, uint8 len, void *value );
+extern bStatus_t BLEShutter_SetParameter( uint8 param, uint8 len, void *value );
   
 /*
- * SimpleProfile_GetParameter - Get a Simple GATT Profile parameter.
+ * BLEShutter_GetParameter - Get a DSLR Camera BLE Shutter Service parameter.
  *
  *    param - Profile parameter ID
  *    value - pointer to data to write.  This is dependent on
@@ -111,7 +105,7 @@ extern bStatus_t SimpleProfile_SetParameter( uint8 param, uint8 len, void *value
  *          data type (example: data type of uint16 will be cast to 
  *          uint16 pointer).
  */
-extern bStatus_t SimpleProfile_GetParameter( uint8 param, void *value );
+extern bStatus_t BLEShutter_GetParameter( uint8 param, void *value );
 
 
 /*********************************************************************

@@ -23,8 +23,13 @@ extern "C"
 
 
 // DSLR Camera BLE Shutter Task Events
-#define DCBS_START_DEVICE_EVT                              0x0001
-#define DCBS_PERIODIC_EVT                                  0x0002
+#define DCBS_START_DEVICE_EVT                               0x0001
+#define DCBS_FOCUS_RELEASE_EVT                              0x0002
+#define DCBS_SHOOTING_ACTIVE_EVT                            0x0004
+#define DCBS_SHOOTING_RELEASE_EVT                           0x0008
+
+#define DCBS_DEFAULT_ACTIVE_PERIOD                          500
+
 
 /*********************************************************************
  * MACROS

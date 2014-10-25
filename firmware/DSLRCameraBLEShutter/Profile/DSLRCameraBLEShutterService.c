@@ -27,49 +27,38 @@
  * CONSTANTS
  */
 
-#define SERVAPP_NUM_ATTR_SUPPORTED        17
-
 /*********************************************************************
  * TYPEDEFS
  */
 
-/*********************************************************************
- * GLOBAL VARIABLES
- */
-// Simple GATT Profile Service UUID: 0xFFF0
-CONST uint8 simpleProfileServUUID[ATT_BT_UUID_SIZE] =
-{ 
-  LO_UINT16(SIMPLEPROFILE_SERV_UUID), HI_UINT16(SIMPLEPROFILE_SERV_UUID)
+// DSLR Camera BLE Shutter Service UUID
+CONST uint8 bleShutterServUUID[ATT_BT_UUID_SIZE] = 
+{
+    LO_UINT16(BLESHUTTER_SERV_UUID), HI_UINT16(BLESHUTTER_SERV_UUID)
 };
 
-// Characteristic 1 UUID: 0xFFF1
-CONST uint8 simpleProfilechar1UUID[ATT_BT_UUID_SIZE] =
-{ 
-  LO_UINT16(SIMPLEPROFILE_CHAR1_UUID), HI_UINT16(SIMPLEPROFILE_CHAR1_UUID)
+// Characteristic Focus UUID
+CONST uint8 bleShutterFocusUUID[ATT_BT_UUID_SIZE] = 
+{
+    LO_UINT16(BLESHUTTER_FOCUS_UUID), HI_UINT16(BLESHUTTER_FOCUS_UUID)
 };
 
-// Characteristic 2 UUID: 0xFFF2
-CONST uint8 simpleProfilechar2UUID[ATT_BT_UUID_SIZE] =
-{ 
-  LO_UINT16(SIMPLEPROFILE_CHAR2_UUID), HI_UINT16(SIMPLEPROFILE_CHAR2_UUID)
+// Characteristic Shooting UUID
+CONST uint8 bleShutterShootingUUID[ATT_BT_UUID_SIZE] = 
+{
+    LO_UINT16(BLESHUTTER_SHOOTING_UUID), HI_UINT16(BLESHUTTER_SHOOTING_UUID)
 };
 
-// Characteristic 3 UUID: 0xFFF3
-CONST uint8 simpleProfilechar3UUID[ATT_BT_UUID_SIZE] =
-{ 
-  LO_UINT16(SIMPLEPROFILE_CHAR3_UUID), HI_UINT16(SIMPLEPROFILE_CHAR3_UUID)
+// Characteristic Stop UUID
+CONST uint8 bleShutterStopUUID[ATT_BT_UUID_SIZE] = 
+{
+    LO_UINT16(BLESHUTTER_STOP_UUID), HI_UINT16(BLESHUTTER_STOP_UUID)
 };
 
-// Characteristic 4 UUID: 0xFFF4
-CONST uint8 simpleProfilechar4UUID[ATT_BT_UUID_SIZE] =
-{ 
-  LO_UINT16(SIMPLEPROFILE_CHAR4_UUID), HI_UINT16(SIMPLEPROFILE_CHAR4_UUID)
-};
-
-// Characteristic 5 UUID: 0xFFF5
-CONST uint8 simpleProfilechar5UUID[ATT_BT_UUID_SIZE] =
-{ 
-  LO_UINT16(SIMPLEPROFILE_CHAR5_UUID), HI_UINT16(SIMPLEPROFILE_CHAR5_UUID)
+// Characteristic Progress UUID
+CONST uint8 bleShutterProgressUUID[ATT_BT_UUID_SIZE] = 
+{
+    LO_UINT16(BLESHUTTER_PROGRESS_UUID), HI_UINT16(BLESHUTTER_PROGRESS_UUID)
 };
 
 /*********************************************************************
@@ -84,214 +73,166 @@ CONST uint8 simpleProfilechar5UUID[ATT_BT_UUID_SIZE] =
  * LOCAL VARIABLES
  */
 
-static simpleProfileCBs_t *simpleProfile_AppCBs = NULL;
+static bleShutterCBs_t *bleShutter_AppCBs = NULL;
 
 /*********************************************************************
  * Profile Attributes - variables
  */
 
-// Simple Profile Service attribute
-static CONST gattAttrType_t simpleProfileService = { ATT_BT_UUID_SIZE, simpleProfileServUUID };
+// DSLR Camera BLE Shutter Service attribute
+static CONST gattAttrType_t bleShutterService = { ATT_BT_UUID_SIZE, bleShutterServUUID };
 
 
-// Simple Profile Characteristic 1 Properties
-static uint8 simpleProfileChar1Props = GATT_PROP_READ | GATT_PROP_WRITE;
+// Characteristic Focus Properties
+static uint8 bleShutterFocusProps = GATT_PROP_WRITE;
+// Characteristic Focus Value
+static uint8 bleShutterFocus = 0;
+// Characteristic Focus Description
+static uint8 bleShutterFocusUserDesp[] = "Focus\0";
 
-// Characteristic 1 Value
-static uint8 simpleProfileChar1 = 0;
+// Characteristic Shooting Properties
+static uint8 bleShutterShootingProps = GATT_PROP_WRITE;
+// Characteristic Shooting Value
+static uint8 bleShutterShooting[BLESHUTTER_SHOOTING_LEN] = { 0 };
+// Characteristic Shooting Description
+static uint8 bleShutterShootingUserDesp[] = "Shooting\0";
 
-// Simple Profile Characteristic 1 User Description
-static uint8 simpleProfileChar1UserDesp[17] = "Characteristic 1\0";
+// Characteristic Stop Properties
+static uint8 bleShutterStopProps = GATT_PROP_WRITE;
+// Characteristic Stop Value
+static uint8 bleShutterStop = 0;
+// Characteristic Stop Description
+static uint8 bleShutterStopUserDesp[] = "Stop\0";
 
-
-// Simple Profile Characteristic 2 Properties
-static uint8 simpleProfileChar2Props = GATT_PROP_READ;
-
-// Characteristic 2 Value
-static uint8 simpleProfileChar2 = 0;
-
-// Simple Profile Characteristic 2 User Description
-static uint8 simpleProfileChar2UserDesp[17] = "Characteristic 2\0";
-
-
-// Simple Profile Characteristic 3 Properties
-static uint8 simpleProfileChar3Props = GATT_PROP_WRITE;
-
-// Characteristic 3 Value
-static uint8 simpleProfileChar3 = 0;
-
-// Simple Profile Characteristic 3 User Description
-static uint8 simpleProfileChar3UserDesp[17] = "Characteristic 3\0";
-
-
-// Simple Profile Characteristic 4 Properties
-static uint8 simpleProfileChar4Props = GATT_PROP_NOTIFY;
-
-// Characteristic 4 Value
-static uint8 simpleProfileChar4 = 0;
-
-// Simple Profile Characteristic 4 Configuration Each client has its own
+// Characteristic Progress Properties
+static uint8 bleShutterProgressProps = GATT_PROP_NOTIFY;
+// Characteristic Progress Value
+static uint8 bleShutterProgress[BLESHUTTER_PROGRESS_LEN] = { 0 };
+// Characteristic Progress Configuration Each client has its own
 // instantiation of the Client Characteristic Configuration. Reads of the
 // Client Characteristic Configuration only shows the configuration for
 // that client and writes only affect the configuration of that client.
-static gattCharCfg_t simpleProfileChar4Config[GATT_MAX_NUM_CONN];
-                                        
-// Simple Profile Characteristic 4 User Description
-static uint8 simpleProfileChar4UserDesp[17] = "Characteristic 4\0";
-
-
-// Simple Profile Characteristic 5 Properties
-static uint8 simpleProfileChar5Props = GATT_PROP_READ;
-
-// Characteristic 5 Value
-static uint8 simpleProfileChar5[SIMPLEPROFILE_CHAR5_LEN] = { 0, 0, 0, 0, 0 };
-
-// Simple Profile Characteristic 5 User Description
-static uint8 simpleProfileChar5UserDesp[17] = "Characteristic 5\0";
-
+static gattCharCfg_t bleShutterProgressConfig[GATT_MAX_NUM_CONN];
+// Characteristic Progress Description
+static uint8 bleShutterProgressUserDesp[] = "Progress\0";
 
 /*********************************************************************
  * Profile Attributes - Table
  */
 
-static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] = 
+static gattAttribute_t bleShutterAttrTbl[] =
 {
-  // Simple Profile Service
-  { 
-    { ATT_BT_UUID_SIZE, primaryServiceUUID }, /* type */
-    GATT_PERMIT_READ,                         /* permissions */
-    0,                                        /* handle */
-    (uint8 *)&simpleProfileService            /* pValue */
-  },
-
-    // Characteristic 1 Declaration
+    // BLE Shutter Service
     { 
-      { ATT_BT_UUID_SIZE, characterUUID },
-      GATT_PERMIT_READ, 
-      0,
-      &simpleProfileChar1Props 
+        { ATT_BT_UUID_SIZE, primaryServiceUUID }, /* type */
+        GATT_PERMIT_READ,                         /* permissions */
+        0,                                        /* handle */
+        (uint8 *)&bleShutterService               /* pValue */
     },
 
-      // Characteristic Value 1
-      { 
-        { ATT_BT_UUID_SIZE, simpleProfilechar1UUID },
-        GATT_PERMIT_READ | GATT_PERMIT_WRITE, 
-        0, 
-        &simpleProfileChar1 
-      },
+    // Characteristic Focus Declaration
+    { 
+        { ATT_BT_UUID_SIZE, characterUUID },
+        GATT_PERMIT_READ, 
+        0,
+        &bleShutterFocusProps 
+    },
 
-      // Characteristic 1 User Description
-      { 
+    // Characteristic Focus Value 
+    { 
+        { ATT_BT_UUID_SIZE, bleShutterFocusUUID },
+        GATT_PERMIT_WRITE,
+        0, 
+        &bleShutterFocus 
+    },
+
+    // Characteristic Focus User Description
+    { 
         { ATT_BT_UUID_SIZE, charUserDescUUID },
         GATT_PERMIT_READ, 
         0, 
-        simpleProfileChar1UserDesp 
-      },      
+        bleShutterFocusUserDesp 
+    },      
 
-    // Characteristic 2 Declaration
+    // Characteristic Shooting Declaration
     { 
-      { ATT_BT_UUID_SIZE, characterUUID },
-      GATT_PERMIT_READ, 
-      0,
-      &simpleProfileChar2Props 
+        { ATT_BT_UUID_SIZE, characterUUID },
+        GATT_PERMIT_READ, 
+        0,
+        &bleShutterShootingProps 
     },
 
-      // Characteristic Value 2
-      { 
-        { ATT_BT_UUID_SIZE, simpleProfilechar2UUID },
-        GATT_PERMIT_READ, 
+    // Characteristic Value Shooting
+    { 
+        { ATT_BT_UUID_SIZE, bleShutterShootingUUID },
+        GATT_PERMIT_WRITE,
         0, 
-        &simpleProfileChar2 
-      },
+        bleShutterShooting 
+    },
 
-      // Characteristic 2 User Description
-      { 
+    // Characteristic Shooting User Description
+    { 
         { ATT_BT_UUID_SIZE, charUserDescUUID },
         GATT_PERMIT_READ, 
         0, 
-        simpleProfileChar2UserDesp 
-      },           
-      
-    // Characteristic 3 Declaration
+        bleShutterShootingUserDesp 
+    },           
+
+    // Characteristic Stop Declaration
     { 
-      { ATT_BT_UUID_SIZE, characterUUID },
-      GATT_PERMIT_READ, 
-      0,
-      &simpleProfileChar3Props 
+        { ATT_BT_UUID_SIZE, characterUUID },
+        GATT_PERMIT_READ, 
+        0,
+        &bleShutterStopProps 
     },
 
-      // Characteristic Value 3
-      { 
-        { ATT_BT_UUID_SIZE, simpleProfilechar3UUID },
+    // Characteristic Stop Value 
+    { 
+        { ATT_BT_UUID_SIZE, bleShutterStopUUID },
         GATT_PERMIT_WRITE, 
         0, 
-        &simpleProfileChar3 
-      },
+        &bleShutterStop 
+    },
 
-      // Characteristic 3 User Description
-      { 
+    // Characteristic Stop User Description
+    { 
         { ATT_BT_UUID_SIZE, charUserDescUUID },
         GATT_PERMIT_READ, 
         0, 
-        simpleProfileChar3UserDesp 
-      },
-
-    // Characteristic 4 Declaration
-    { 
-      { ATT_BT_UUID_SIZE, characterUUID },
-      GATT_PERMIT_READ, 
-      0,
-      &simpleProfileChar4Props 
+        bleShutterStopUserDesp 
     },
 
-      // Characteristic Value 4
-      { 
-        { ATT_BT_UUID_SIZE, simpleProfilechar4UUID },
-        0, 
-        0, 
-        &simpleProfileChar4 
-      },
+    // Characteristic Progress Declaration
+    { 
+        { ATT_BT_UUID_SIZE, characterUUID },
+        GATT_PERMIT_READ, 
+        0,
+        &bleShutterProgressProps 
+    },
 
-      // Characteristic 4 configuration
-      { 
+    // Characteristic Progress Value 
+    { 
+        { ATT_BT_UUID_SIZE, bleShutterProgressUUID },
+        0, 
+        0, 
+        bleShutterProgress 
+    },
+
+    // Characteristic Progress configuration
+    { 
         { ATT_BT_UUID_SIZE, clientCharCfgUUID },
         GATT_PERMIT_READ | GATT_PERMIT_WRITE, 
         0, 
-        (uint8 *)simpleProfileChar4Config 
-      },
-      
-      // Characteristic 4 User Description
-      { 
-        { ATT_BT_UUID_SIZE, charUserDescUUID },
-        GATT_PERMIT_READ, 
-        0, 
-        simpleProfileChar4UserDesp 
-      },
-      
-    // Characteristic 5 Declaration
-    { 
-      { ATT_BT_UUID_SIZE, characterUUID },
-      GATT_PERMIT_READ, 
-      0,
-      &simpleProfileChar5Props 
+        (uint8 *)bleShutterProgressConfig 
     },
 
-      // Characteristic Value 5
-      { 
-        { ATT_BT_UUID_SIZE, simpleProfilechar5UUID },
-        GATT_PERMIT_AUTHEN_READ, 
-        0, 
-        simpleProfileChar5 
-      },
-
-      // Characteristic 5 User Description
-      { 
+    // Characteristic Progress User Description
+    { 
         { ATT_BT_UUID_SIZE, charUserDescUUID },
         GATT_PERMIT_READ, 
         0, 
-        simpleProfileChar5UserDesp 
-      },
-
+        bleShutterProgressUserDesp 
+    }
 
 };
 
@@ -299,23 +240,23 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
-static uint8 simpleProfile_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr, 
-                            uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen );
-static bStatus_t simpleProfile_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
-                                 uint8 *pValue, uint8 len, uint16 offset );
+static uint8 bleShutter_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr, 
+        uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen );
+static bStatus_t bleShutter_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
+        uint8 *pValue, uint8 len, uint16 offset );
 
-static void simpleProfile_HandleConnStatusCB( uint16 connHandle, uint8 changeType );
+static void bleShutter_HandleConnStatusCB( uint16 connHandle, uint8 changeType );
 
 
 /*********************************************************************
  * PROFILE CALLBACKS
  */
-// Simple Profile Service Callbacks
-CONST gattServiceCBs_t simpleProfileCBs =
+// DSLR Camera BLE Shutter Service Callbacks
+CONST gattServiceCBs_t bleShutterCBs =
 {
-  simpleProfile_ReadAttrCB,  // Read callback function pointer
-  simpleProfile_WriteAttrCB, // Write callback function pointer
-  NULL                       // Authorization callback function pointer
+    bleShutter_ReadAttrCB,  // Read callback function pointer
+    bleShutter_WriteAttrCB, // Write callback function pointer
+    NULL                    // Authorization callback function pointer
 };
 
 /*********************************************************************
@@ -323,9 +264,9 @@ CONST gattServiceCBs_t simpleProfileCBs =
  */
 
 /*********************************************************************
- * @fn      SimpleProfile_AddService
+ * @fn      BLEShutter_AddService
  *
- * @brief   Initializes the Simple Profile service by registering
+ * @brief   Initializes the BLE Shutter service by registering
  *          GATT attributes with the GATT server.
  *
  * @param   services - services to add. This is a bit map and can
@@ -333,30 +274,30 @@ CONST gattServiceCBs_t simpleProfileCBs =
  *
  * @return  Success or Failure
  */
-bStatus_t SimpleProfile_AddService( uint32 services )
+bStatus_t BLEShutter_AddService( uint32 services )
 {
-  uint8 status = SUCCESS;
+    uint8 status = SUCCESS;
 
-  // Initialize Client Characteristic Configuration attributes
-  GATTServApp_InitCharCfg( INVALID_CONNHANDLE, simpleProfileChar4Config );
+    // Initialize Client Characteristic Configuration attributes
+    GATTServApp_InitCharCfg( INVALID_CONNHANDLE, bleShutterProgressConfig );
 
-  // Register with Link DB to receive link status change callback
-  VOID linkDB_Register( simpleProfile_HandleConnStatusCB );  
-  
-  if ( services & SIMPLEPROFILE_SERVICE )
-  {
-    // Register GATT attribute list and CBs with GATT Server App
-    status = GATTServApp_RegisterService( simpleProfileAttrTbl, 
-                                          GATT_NUM_ATTRS( simpleProfileAttrTbl ),
-                                          &simpleProfileCBs );
-  }
+    // Register with Link DB to receive link status change callback
+    VOID linkDB_Register( bleShutter_HandleConnStatusCB );  
 
-  return ( status );
+    if ( services & BLESHUTTER_SERVICE )
+    {
+        // Register GATT attribute list and CBs with GATT Server App
+        status = GATTServApp_RegisterService( bleShutterAttrTbl, 
+                GATT_NUM_ATTRS( bleShutterAttrTbl ),
+                &bleShutterCBs );
+    }
+
+    return ( status );
 }
 
 
 /*********************************************************************
- * @fn      SimpleProfile_RegisterAppCBs
+ * @fn      BLEShutter_RegisterAppCBs
  *
  * @brief   Registers the application callback function. Only call 
  *          this function once.
@@ -365,25 +306,25 @@ bStatus_t SimpleProfile_AddService( uint32 services )
  *
  * @return  SUCCESS or bleAlreadyInRequestedMode
  */
-bStatus_t SimpleProfile_RegisterAppCBs( simpleProfileCBs_t *appCallbacks )
+bStatus_t BLEShutter_RegisterAppCBs( bleShutterCBs_t *appCallbacks )
 {
-  if ( appCallbacks )
-  {
-    simpleProfile_AppCBs = appCallbacks;
-    
-    return ( SUCCESS );
-  }
-  else
-  {
-    return ( bleAlreadyInRequestedMode );
-  }
+    if ( appCallbacks )
+    {
+        bleShutter_AppCBs = appCallbacks;
+
+        return ( SUCCESS );
+    }
+    else
+    {
+        return ( bleAlreadyInRequestedMode );
+    }
 }
-  
+
 
 /*********************************************************************
- * @fn      SimpleProfile_SetParameter
+ * @fn      BLEShutter_SetParameter
  *
- * @brief   Set a Simple Profile parameter.
+ * @brief   Set a BLE Shutter parameter.
  *
  * @param   param - Profile parameter ID
  * @param   len - length of data to right
@@ -394,83 +335,72 @@ bStatus_t SimpleProfile_RegisterAppCBs( simpleProfileCBs_t *appCallbacks )
  *
  * @return  bStatus_t
  */
-bStatus_t SimpleProfile_SetParameter( uint8 param, uint8 len, void *value )
+bStatus_t BLEShutter_SetParameter( uint8 param, uint8 len, void *value )
 {
-  bStatus_t ret = SUCCESS;
-  switch ( param )
-  {
-    case SIMPLEPROFILE_CHAR1:
-      if ( len == sizeof ( uint8 ) ) 
-      {
-        simpleProfileChar1 = *((uint8*)value);
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
+    bStatus_t ret = SUCCESS;
+    switch ( param )
+    {
+        case BLESHUTTER_FOCUS:
+            if ( len == sizeof ( uint8 ) ) 
+            {
+                bleShutterFocus = *((uint8*)value);
+            }
+            else
+            {
+                ret = bleInvalidRange;
+            }
+            break;
 
-    case SIMPLEPROFILE_CHAR2:
-      if ( len == sizeof ( uint8 ) ) 
-      {
-        simpleProfileChar2 = *((uint8*)value);
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
+        case BLESHUTTER_SHOOTING:
+            if ( len == BLESHUTTER_SHOOTING_LEN )
+            {
+                VOID osal_memcpy( bleShutterShooting, value, BLESHUTTER_SHOOTING_LEN );
+            }
+            else
+            {
+                ret = bleInvalidRange;
+            }
+            break;
 
-    case SIMPLEPROFILE_CHAR3:
-      if ( len == sizeof ( uint8 ) ) 
-      {
-        simpleProfileChar3 = *((uint8*)value);
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
+        case BLESHUTTER_STOP:
+            if ( len == sizeof ( uint8 ) ) 
+            {
+                bleShutterStop = *((uint8*)value);
+            }
+            else
+            {
+                ret = bleInvalidRange;
+            }
+            break;
 
-    case SIMPLEPROFILE_CHAR4:
-      if ( len == sizeof ( uint8 ) ) 
-      {
-        simpleProfileChar4 = *((uint8*)value);
-        
-        // See if Notification has been enabled
-        GATTServApp_ProcessCharCfg( simpleProfileChar4Config, &simpleProfileChar4, FALSE,
-                                    simpleProfileAttrTbl, GATT_NUM_ATTRS( simpleProfileAttrTbl ),
-                                    INVALID_TASK_ID );
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
+        case BLESHUTTER_PROGRESS:
+            if ( len == BLESHUTTER_PROGRESS_LEN ) 
+            {
+                VOID osal_memcpy( bleShutterProgress, value, BLESHUTTER_PROGRESS_LEN);
 
-    case SIMPLEPROFILE_CHAR5:
-      if ( len == SIMPLEPROFILE_CHAR5_LEN ) 
-      {
-        VOID osal_memcpy( simpleProfileChar5, value, SIMPLEPROFILE_CHAR5_LEN );
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
-      
-    default:
-      ret = INVALIDPARAMETER;
-      break;
-  }
-  
-  return ( ret );
+                // See if Notification has been enabled
+                GATTServApp_ProcessCharCfg( bleShutterProgressConfig, bleShutterProgress, FALSE,
+                        bleShutterAttrTbl, GATT_NUM_ATTRS( bleShutterAttrTbl ),
+                        INVALID_TASK_ID );
+            }
+            else
+            {
+                ret = bleInvalidRange;
+            }
+            break;
+
+        default:
+            ret = INVALIDPARAMETER;
+            break;
+    }
+
+    return ( ret );
 }
 
 /*********************************************************************
- * @fn      SimpleProfile_GetParameter
+ * @fn      BLEShutter_GetParameter
  *
- * @brief   Get a Simple Profile parameter.
+ * @brief   Get a BLE Shutter parameter.
  *
  * @param   param - Profile parameter ID
  * @param   value - pointer to data to put.  This is dependent on
@@ -480,41 +410,37 @@ bStatus_t SimpleProfile_SetParameter( uint8 param, uint8 len, void *value )
  *
  * @return  bStatus_t
  */
-bStatus_t SimpleProfile_GetParameter( uint8 param, void *value )
+bStatus_t BLEShutter_GetParameter( uint8 param, void *value )
 {
-  bStatus_t ret = SUCCESS;
-  switch ( param )
-  {
-    case SIMPLEPROFILE_CHAR1:
-      *((uint8*)value) = simpleProfileChar1;
-      break;
+    bStatus_t ret = SUCCESS;
+    switch ( param )
+    {
+        case BLESHUTTER_FOCUS:
+            *((uint8*)value) = bleShutterFocus;
+            break;
 
-    case SIMPLEPROFILE_CHAR2:
-      *((uint8*)value) = simpleProfileChar2;
-      break;      
+        case BLESHUTTER_SHOOTING:
+            VOID osal_memcpy( value, bleShutterShooting, BLESHUTTER_SHOOTING_LEN );
+            break;      
 
-    case SIMPLEPROFILE_CHAR3:
-      *((uint8*)value) = simpleProfileChar3;
-      break;  
+        case BLESHUTTER_STOP:
+            *((uint8*)value) = bleShutterStop;
+            break;  
 
-    case SIMPLEPROFILE_CHAR4:
-      *((uint8*)value) = simpleProfileChar4;
-      break;
+        case BLESHUTTER_PROGRESS:
+            VOID osal_memcpy( value, bleShutterProgress, BLESHUTTER_PROGRESS_LEN );
+            break;      
 
-    case SIMPLEPROFILE_CHAR5:
-      VOID osal_memcpy( value, simpleProfileChar5, SIMPLEPROFILE_CHAR5_LEN );
-      break;      
-      
-    default:
-      ret = INVALIDPARAMETER;
-      break;
-  }
-  
-  return ( ret );
+        default:
+            ret = INVALIDPARAMETER;
+            break;
+    }
+
+    return ( ret );
 }
 
 /*********************************************************************
- * @fn          simpleProfile_ReadAttrCB
+ * @fn          bleShutter_ReadAttrCB
  *
  * @brief       Read an attribute.
  *
@@ -527,69 +453,55 @@ bStatus_t SimpleProfile_GetParameter( uint8 param, void *value )
  *
  * @return      Success or Failure
  */
-static uint8 simpleProfile_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr, 
-                            uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
+static uint8 bleShutter_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr, 
+        uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
 {
-  bStatus_t status = SUCCESS;
+    bStatus_t status = SUCCESS;
 
-  // If attribute permissions require authorization to read, return error
-  if ( gattPermitAuthorRead( pAttr->permissions ) )
-  {
-    // Insufficient authorization
-    return ( ATT_ERR_INSUFFICIENT_AUTHOR );
-  }
-  
-  // Make sure it's not a blob operation (no attributes in the profile are long)
-  if ( offset > 0 )
-  {
-    return ( ATT_ERR_ATTR_NOT_LONG );
-  }
- 
-  if ( pAttr->type.len == ATT_BT_UUID_SIZE )
-  {
-    // 16-bit UUID
-    uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
-    switch ( uuid )
+    // If attribute permissions require authorization to read, return error
+    if ( gattPermitAuthorRead( pAttr->permissions ) )
     {
-      // No need for "GATT_SERVICE_UUID" or "GATT_CLIENT_CHAR_CFG_UUID" cases;
-      // gattserverapp handles those reads
-
-      // characteristics 1 and 2 have read permissions
-      // characteritisc 3 does not have read permissions; therefore it is not
-      //   included here
-      // characteristic 4 does not have read permissions, but because it
-      //   can be sent as a notification, it is included here
-      case SIMPLEPROFILE_CHAR1_UUID:
-      case SIMPLEPROFILE_CHAR2_UUID:
-      case SIMPLEPROFILE_CHAR4_UUID:
-        *pLen = 1;
-        pValue[0] = *pAttr->pValue;
-        break;
-
-      case SIMPLEPROFILE_CHAR5_UUID:
-        *pLen = SIMPLEPROFILE_CHAR5_LEN;
-        VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR5_LEN );
-        break;
-        
-      default:
-        // Should never get here! (characteristics 3 and 4 do not have read permissions)
-        *pLen = 0;
-        status = ATT_ERR_ATTR_NOT_FOUND;
-        break;
+        // Insufficient authorization
+        return ( ATT_ERR_INSUFFICIENT_AUTHOR );
     }
-  }
-  else
-  {
-    // 128-bit UUID
-    *pLen = 0;
-    status = ATT_ERR_INVALID_HANDLE;
-  }
 
-  return ( status );
+    // Make sure it's not a blob operation (no attributes in the profile are long)
+    if ( offset > 0 )
+    {
+        return ( ATT_ERR_ATTR_NOT_LONG );
+    }
+
+    if ( pAttr->type.len == ATT_BT_UUID_SIZE )
+    {
+        // 16-bit UUID
+        uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
+        switch ( uuid )
+        {
+            // No need for "GATT_SERVICE_UUID" or "GATT_CLIENT_CHAR_CFG_UUID" cases;
+            // gattserverapp handles those reads
+            case BLESHUTTER_PROGRESS_UUID:
+                *pLen = BLESHUTTER_PROGRESS_LEN;
+                VOID osal_memcpy( pValue, pAttr->pValue, BLESHUTTER_PROGRESS_LEN );
+                break;
+
+            default:
+                *pLen = 0;
+                status = ATT_ERR_ATTR_NOT_FOUND;
+                break;
+        }
+    }
+    else
+    {
+        // 128-bit UUID
+        *pLen = 0;
+        status = ATT_ERR_INVALID_HANDLE;
+    }
+
+    return ( status );
 }
 
 /*********************************************************************
- * @fn      simpleProfile_WriteAttrCB
+ * @fn      bleShutter_WriteAttrCB
  *
  * @brief   Validate attribute data prior to a write operation
  *
@@ -601,111 +513,84 @@ static uint8 simpleProfile_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr
  *
  * @return  Success or Failure
  */
-static bStatus_t simpleProfile_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
-                                 uint8 *pValue, uint8 len, uint16 offset )
+static bStatus_t bleShutter_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
+        uint8 *pValue, uint8 len, uint16 offset )
 {
-  bStatus_t status = SUCCESS;
-  uint8 notifyApp = 0xFF;
-  
-  // If attribute permissions require authorization to write, return error
-  if ( gattPermitAuthorWrite( pAttr->permissions ) )
-  {
-    // Insufficient authorization
-    return ( ATT_ERR_INSUFFICIENT_AUTHOR );
-  }
-  
-  if ( pAttr->type.len == ATT_BT_UUID_SIZE )
-  {
-    // 16-bit UUID
-    uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
-    switch ( uuid )
+    bStatus_t status = SUCCESS;
+    uint8 notifyApp = 0xFF;
+
+    // If attribute permissions require authorization to write, return error
+    if ( gattPermitAuthorWrite( pAttr->permissions ) )
     {
-      case SIMPLEPROFILE_CHAR1_UUID:
-      case SIMPLEPROFILE_CHAR3_UUID:
-
-        //Validate the value
-        // Make sure it's not a blob oper
-        if ( offset == 0 )
-        {
-          if ( len != 1 )
-          {
-            status = ATT_ERR_INVALID_VALUE_SIZE;
-          }
-        }
-        else
-        {
-          status = ATT_ERR_ATTR_NOT_LONG;
-        }
-        
-        //Write the value
-        if ( status == SUCCESS )
-        {
-          uint8 *pCurValue = (uint8 *)pAttr->pValue;        
-          *pCurValue = pValue[0];
-
-          if( pAttr->pValue == &simpleProfileChar1 )
-          {
-            notifyApp = SIMPLEPROFILE_CHAR1;        
-          }
-          else
-          {
-            notifyApp = SIMPLEPROFILE_CHAR3;           
-          }
-        }
-             
-        break;
-
-      case GATT_CLIENT_CHAR_CFG_UUID:
-        status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
-                                                 offset, GATT_CLIENT_CFG_NOTIFY );
-        break;
-        
-      default:
-        // Should never get here! (characteristics 2 and 4 do not have write permissions)
-        status = ATT_ERR_ATTR_NOT_FOUND;
-        break;
+        // Insufficient authorization
+        return ( ATT_ERR_INSUFFICIENT_AUTHOR );
     }
-  }
-  else
-  {
-    // 128-bit UUID
-    status = ATT_ERR_INVALID_HANDLE;
-  }
 
-  // If a charactersitic value changed then callback function to notify application of change
-  if ( (notifyApp != 0xFF ) && simpleProfile_AppCBs && simpleProfile_AppCBs->pfnSimpleProfileChange )
-  {
-    simpleProfile_AppCBs->pfnSimpleProfileChange( notifyApp );  
-  }
-  
-  return ( status );
+    if ( pAttr->type.len == ATT_BT_UUID_SIZE )
+    {
+        // 16-bit UUID
+        uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
+        switch ( uuid )
+        {
+            case BLESHUTTER_FOCUS_UUID:
+            case BLESHUTTER_SHOOTING_UUID:
+            case BLESHUTTER_STOP_UUID:
+            case BLESHUTTER_PROGRESS_UUID:
+                VOID osal_memcpy( pAttr->pValue, pValue, len );
+                notifyApp = uuid - BLESHUTTER_SERV_UUID;
+
+                break;
+
+            case GATT_CLIENT_CHAR_CFG_UUID:
+                status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
+                        offset, GATT_CLIENT_CFG_NOTIFY );
+                break;
+
+            default:
+                status = ATT_ERR_ATTR_NOT_FOUND;
+                break;
+        }
+    }
+    else
+    {
+        // 128-bit UUID
+        status = ATT_ERR_INVALID_HANDLE;
+    }
+
+    // If a charactersitic value changed then callback function to notify application of change
+    if ( (notifyApp != 0xFF ) && bleShutter_AppCBs && bleShutter_AppCBs->pfnBLEShutterChange )
+    {
+        bleShutter_AppCBs->pfnBLEShutterChange( notifyApp );  
+    }
+
+    return ( status );
 }
 
 /*********************************************************************
- * @fn          simpleProfile_HandleConnStatusCB
+ * @fn          bleShutter_HandleConnStatusCB
  *
- * @brief       Simple Profile link status change handler function.
+ * @brief       BLE Shutter link status change handler function.
  *
  * @param       connHandle - connection handle
  * @param       changeType - type of change
  *
  * @return      none
  */
-static void simpleProfile_HandleConnStatusCB( uint16 connHandle, uint8 changeType )
+static void bleShutter_HandleConnStatusCB( uint16 connHandle, uint8 changeType )
 { 
-  // Make sure this is not loopback connection
-  if ( connHandle != LOOPBACK_CONNHANDLE )
-  {
-    // Reset Client Char Config if connection has dropped
-    if ( ( changeType == LINKDB_STATUS_UPDATE_REMOVED )      ||
-         ( ( changeType == LINKDB_STATUS_UPDATE_STATEFLAGS ) && 
-           ( !linkDB_Up( connHandle ) ) ) )
-    { 
-      GATTServApp_InitCharCfg( connHandle, simpleProfileChar4Config );
+    // Make sure this is not loopback connection
+    if ( connHandle != LOOPBACK_CONNHANDLE )
+    {
+        // Reset Client Char Config if connection has dropped
+        if ( ( changeType == LINKDB_STATUS_UPDATE_REMOVED )      ||
+                ( ( changeType == LINKDB_STATUS_UPDATE_STATEFLAGS ) && 
+                  ( !linkDB_Up( connHandle ) ) ) )
+        { 
+            GATTServApp_InitCharCfg( connHandle, bleShutterProgressConfig );
+        }
     }
-  }
 }
 
 
 /*********************************************************************
-*********************************************************************/
+ *********************************************************************/
